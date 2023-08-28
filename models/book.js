@@ -6,7 +6,12 @@ const bookSchema = new Schema({
     "isbn": Number,
     "author": String,
     "title": String,
-    "reviews": {}
+    "reviews": [
+        {
+            "username": String,
+            "text": String
+        }
+    ]
 });
 
 const Book = mongoose.model('book', bookSchema);

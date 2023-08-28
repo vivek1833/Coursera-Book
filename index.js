@@ -35,7 +35,7 @@ app.get("/books", async (req, res) => {
 
 // Search for specific books and retrieve their details based on the book’s ISBN code, author names and titles
 app.get("/books/search", async (req, res) => {
-  const { isbn, author, title } = req.query;
+  const { isbn, author, title } = req.body;
   const books = await Book.find({
     $or: [{ isbn: isbn }, { author: author }, { title: title }],
   });
@@ -45,7 +45,8 @@ app.get("/books/search", async (req, res) => {
 // Retrieve reviews/comments for specified books
 app.get("/books/:id/reviews", async (req, res) => {
   const id = req.params.id;
-  const book = await Book.find((book) => book.isbn == id);
+  const book = await Book.findOne({ isbn: id });
+
   if (book) {
     res.json(book.reviews);
   } else {
@@ -55,17 +56,21 @@ app.get("/books/:id/reviews", async (req, res) => {
 
 // Register as a new user of the application
 app.post("/users", async (req, res) => {
-  const user = req.body;
-  const newUser = await User.create(user);
+  const { username, password } = req.body;
+  const newUser = new User({
+    username: username,
+    password: password,
+  });
+  await newUser.save();
   res.json(newUser);
 });
 
 // Login to the application
 app.post("/login", async (req, res) => {
   const { username, password } = req.body;
-  const user = await User.find((user) => user.username == username);
+  const user = await User.findOne({ username });
   if (user) {
-    if (user.password == password) {
+    if (user.password === password) {
       res.json(user);
     } else {
       res.status(401).json({ error: "Wrong password" });
@@ -78,29 +83,40 @@ app.post("/login", async (req, res) => {
 // Add a new review for a book (logged in users only)
 app.post("/books/:id/reviews", async (req, res) => {
   const id = req.params.id;
-  const book = await Book.find((book) => book.isbn == id);
+  const book = await Book.findOne({ isbn: id });
   if (book) {
-    const review = req.body;
-    book.reviews.push(review);
-    res.json(review);
+    const review = req.body.review;
+    const username = req.body.username;
+    const currUser = await User.findOne({ username });
+    if (!currUser) {
+      res.status(403).json({ error: "No user found" });
+    } else {
+      book.reviews.push({
+        username,
+        text: review,
+      });
+      await book.save();
+      res.json(book);
+    }
   } else {
     res.status(404).json({ error: "Book not found" });
   }
 });
 
 // Modify a book review (logged in users can modify only their own reviews)
-app.put("/books/:id/reviews/:reviewId", async (req, res) => {
+app.put("/books/:id/reviews/update", async (req, res) => {
   const id = req.params.id;
-  const reviewId = req.params.reviewId;
-  const book = await Book.find((book) => book.isbn == id);
+  const book = await Book.findOne({ isbn: id });
   if (book) {
-    const review = book.reviews.find((review) => review.id == reviewId);
-    if (review) {
-      const newReview = req.body;
-      book.reviews = book.reviews.map((review) =>
-        review.id == reviewId ? newReview : review
-      );
-      res.json(newReview);
+    const username = req.body.reviewId;
+    const currreview = book.reviews.find(
+      (review) => review.username === username
+    );
+
+    if (currreview) {
+      currreview = req.body.review;
+      await book.save();
+      res.json(book);
     } else {
       res.status(404).json({ error: "Review not found" });
     }
@@ -110,15 +126,18 @@ app.put("/books/:id/reviews/:reviewId", async (req, res) => {
 });
 
 // Delete a book review (logged in users can delete only their own reviews)
-app.delete("/books/:id/reviews/:reviewId", async (req, res) => {
+app.delete("/books/:id/reviews/delete", async (req, res) => {
   const id = req.params.id;
-  const reviewId = req.params.reviewId;
-  const book = await Book.find((book) => book.isbn == id);
+  const book = await Book.findOne({ isbn: id });
   if (book) {
-    const review = book.reviews.find((review) => review.id == reviewId);
-    if (review) {
-      book.reviews = book.reviews.filter((review) => review.id != reviewId);
-      res.json({ message: "Review deleted" });
+    const username = req.body.username;
+    const currreview = book.reviews.find(
+      (review) => review.username == username
+    );
+
+    if (currreview) {
+      book.reviews = book.reviews.find((review) => review.username != username);
+      res.json(book);
     } else {
       res.status(404).json({ error: "Review not found" });
     }
