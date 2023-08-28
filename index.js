@@ -30,7 +30,7 @@ app.get("/", (req, res) => {
 // Retrieve a list of all books available in the bookshop
 app.get("/books", async (req, res) => {
   const books = await Book.find();
-  res.json(books);
+  res.status(200).json(books);
 });
 
 // Search for specific books and retrieve their details based on the book’s ISBN code, author names and titles
